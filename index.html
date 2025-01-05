@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Media Processing Tool</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .network-status, .location-status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            margin: 5px;
+            border-radius: 4px;
+            color: white;
+            font-size: 12px;
+            z-index: 1000;
+        }
+
+        .network-status { top: 10px; }
+        .location-status { top: 40px; }
+
+        .upload-form {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        .video-editor, .audio-editor, .image-editor {
+            display: none;
+            margin-top: 20px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        .video-container, .audio-container {
+            margin-bottom: 20px;
+        }
+
+        .image-container {
+            max-width: 100%;
+            height: 500px;
+            margin-bottom: 20px;
+        }
+
+        video, audio {
+            width: 640px;
+            max-width: 100%;
+            margin-bottom: 10px;
+        }
+
+        .time-controls {
+            position: relative;
+            width: 100%;
+            height: 40px;
+            margin: 20px 0;
+        }
+
+        .slider {
+            position: absolute;
+            width: 100%;
+            height: 5px;
+            background: none;
+            pointer-events: none;
+            -webkit-appearance: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #2196F3;
+            cursor: pointer;
+            pointer-events: auto;
+            -webkit-appearance: none;
+        }
+
+        .slider::-moz-range-thumb {
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #2196F3;
+            cursor: pointer;
+            pointer-events: auto;
+        }
+
+        .buttons {
+            margin-top: 20px;
+        }
+
+        .button {
+            padding: 8px 16px;
+            margin-right: 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .button:hover {
+            background-color: #45a049;
+        }
+
+        .button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        .button.blue {
+            background-color: #2196F3;
+        }
+
+        .button.blue:hover {
+            background-color: #1976D2;
+        }
+
+        .button.green {
+            background-color: #4CAF50;
+        }
+
+        .button.green:hover {
+            background-color: #45a049;
+        }
+
+        .image-controls {
+            margin: 10px 0;
+        }
+
+        .image-controls select {
+            padding: 5px;
+            margin-right: 10px;
+        }
+
+        .cropper-container {
+            max-height: 500px !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="networkStatus" class="network-status">CHECKING NETWORK...</div>
+    <div id="locationStatus" class="location-status">CHECKING LOCATION...</div>
+
+    <div class="upload-form">
+        <h2>Upload Media File</h2>
+        <input type="file" id="fileInput" accept="video/*,audio/*,image/*" onchange="showEditor()">
+    </div>
+
+    <div id="videoEditor" class="video-editor">
+        <h2>Video Editor</h2>
+        <div class="video-container">
+            <video id="videoPreview" controls>
+                Your browser does not support video playback.
+            </video>
+        </div>
+
+        <div class="time-controls">
+            <input type="range" id="startHandle" class="slider" min="0" step="0.1" value="0">
+            <input type="range" id="endHandle" class="slider" min="0" step="0.1" value="100">
+        </div>
+
+        <div class="buttons">
+            <button onclick="directCompress()" class="button blue">Directly Compress</button>
+            <br><br>
+            <button id="previewButton" class="button blue">Preview Selection</button>
+            <button id="trimButton" class="button">Trim Video</button>
+            <button id="compressButton" class="button">Trim & Compress</button>
+            <button id="saveButton" class="button green">Save</button>
+        </div>
+    </div>
+
+    <div id="audioEditor" class="audio-editor">
+        <h2>Audio Editor</h2>
+        <div class="audio-container">
+            <audio id="audioPreview" controls>
+                Your browser does not support audio playback.
+            </audio>
+        </div>
+
+        <div class="time-controls">
+            <input type="range" id="audioStartHandle" class="slider" min="0" step="0.1" value="0">
+            <input type="range" id="audioEndHandle" class="slider" min="0" step="0.1" value="100">
+        </div>
+
+        <div class="buttons">
+            <button onclick="directCompress()" class="button blue">Directly Compress</button>
+            <br><br>
+            <button id="audioPreviewButton" class="button blue">Preview Selection</button>
+            <button id="audioTrimButton" class="button">Trim Audio</button>
+            <button id="audioCompressButton" class="button">Trim & Compress</button>
+            <button id="audioSaveButton" class="button green">Save</button>
+        </div>
+    </div>
+
+    <div id="imageEditor" class="image-editor">
+        <h2>Image Editor</h2>
+        <div class="image-container">
+            <img id="imagePreview" src="">
+        </div>
+        <div class="image-controls">
+            <select id="imageFormat">
+                <option value="jpeg">JPEG</option>
+                <option value="png">PNG</option>
+                <option value="webp">WebP</option>
+            </select>
+        </div>
+        <div class="buttons">
+            <button onclick="directCompress()" class="button blue">Directly Compress</button>
+            <br><br>
+            <button id="cropButton" class="button blue">Apply Crop</button>
+            <button id="resetButton" class="button">Reset Crop</button>
+            <button id="saveImageButton" class="button green">Save</button>
+        </div>
+    </div>
+
+    <script>
+        class NetworkDetector {
+            constructor() {
+                this.networkElement = document.getElementById('networkStatus');
+                this.checkConnection();
+                setInterval(() => this.checkConnection(), 5000);
+            }
+
+            checkConnection() {
+                if (navigator.onLine) {
+                    this.networkElement.textContent = 'NETWORK: CONNECTED';
+                    this.networkElement.style.backgroundColor = '#52c41a';
+                } else {
+                    this.networkElement.textContent = 'NETWORK: DISCONNECTED';
+                    this.networkElement.style.backgroundColor = '#ff4d4f';
+                }
+            }
+        }
+
+        class LocationDetector {
+    constructor() {
+        this.locationElement = document.getElementById('locationStatus');
+        this.initLocation();
+    }
+
+    async initLocation() {
+        if (!navigator.onLine) {
+            this.locationElement.textContent = 'LOCATION: UNKNOWN';
+            this.locationElement.style.backgroundColor = '#faad14';
+            return;
+        }
+
+        if ("geolocation" in navigator) {
+            this.updateLocation();
+            setInterval(() => this.updateLocation(), 300000);
+        } else {
+            this.locationElement.textContent = 'LOCATION NOT AVAILABLE';
+            this.locationElement.style.backgroundColor = '#ff4d4f';
+        }
+    }
+
+    async updateLocation() {
+        if (!navigator.onLine) {
+            this.locationElement.textContent = 'LOCATION: UNKNOWN';
+            this.locationElement.style.backgroundColor = '#faad14';
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            async (position) => {
+                const latitude = position.coords.latitude;
+                const longitude = position.coords.longitude;
+                
+                try {
+                    const response = await fetch(
+                        `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
+                    );
+                    const data = await response.json();
+                    
+                    const city = data.address.city || 
+                               data.address.town || 
+                               data.address.village || 
+                               data.address.suburb ||
+                               'Unknown City';
+                    const country = data.address.country || 'Unknown Country';
+                    
+                    this.locationElement.textContent = `LOCATION: ${city}, ${country}`;
+                    this.locationElement.style.backgroundColor = '#1890ff';
+                } catch (error) {
+                    console.error('Geocoding Error:', error);
+                    this.locationElement.textContent = 'LOCATION: UNKNOWN';
+                    this.locationElement.style.backgroundColor = '#faad14';
+                }
+            },
+            (error) => {
+                this.locationElement.textContent = 'LOCATION: UNKNOWN';
+                this.locationElement.style.backgroundColor = '#faad14';
+                console.error('Location Error:', error);
+            }
+        );
+    }
+}
+        class VideoEditor {
+            constructor() {
+                this.videoPreview = document.getElementById('videoPreview');
+                this.startHandle = document.getElementById('startHandle');
+                this.endHandle = document.getElementById('endHandle');
+                this.previewButton = document.getElementById('previewButton');
+                this.trimButton = document.getElementById('trimButton');
+                this.compressButton = document.getElementById('compressButton');
+                this.saveButton = document.getElementById('saveButton');
+
+                this.initializeSliders();
+                this.initializeButtons();
+            }
+
+            initializeSliders() {
+                this.videoPreview.addEventListener('loadedmetadata', () => {
+                    const duration = this.videoPreview.duration;
+                    this.startHandle.max = duration;
+                    this.endHandle.max = duration;
+                    this.endHandle.value = duration;
+                    this.updateSliderBackground();
+                });
+
+                this.startHandle.addEventListener('input', () => {
+                    if (parseFloat(this.startHandle.value) > parseFloat(this.endHandle.value)) {
+                        this.startHandle.value = this.endHandle.value;
+                    }
+                    this.updateSliderBackground();
+                });
+
+                this.endHandle.addEventListener('input', () => {
+                    if (parseFloat(this.endHandle.value) < parseFloat(this.startHandle.value)) {
+                        this.endHandle.value = this.startHandle.value;
+                    }
+                    this.updateSliderBackground();
+                });
+            }
+
+            updateSliderBackground() {
+                const start = (this.startHandle.value / this.startHandle.max) * 100;
+                const end = (this.endHandle.value / this.endHandle.max) * 100;
+                
+                this.startHandle.style.background = this.endHandle.style.background = 
+                    `linear-gradient(to right, 
+                        #ddd 0%, 
+                        #ddd ${start}%, 
+                        #2196F3 ${start}%, 
+                        #2196F3 ${end}%, 
+                        #ddd ${end}%, 
+                        #ddd 100%)`;
+            }
+
+            initializeButtons() {
+                this.previewButton.addEventListener('click', () => this.previewSelection());
+                this.trimButton.addEventListener('click', () => this.trimVideo(false));
+                this.compressButton.addEventListener('click', () => this.trimVideo(true));
+                this.saveButton.addEventListener('click', () => this.saveVideo());
+            }
+
+            previewSelection() {
+                this.videoPreview.currentTime = parseFloat(this.startHandle.value);
+                this.videoPreview.play();
+                
+                setTimeout(() => {
+                    this.videoPreview.pause();
+                }, (this.endHandle.value - this.startHandle.value) * 1000);
+            }
+
+            async trimVideo(compress = false) {
+                const formData = new FormData();
+                const file = document.getElementById('fileInput').files[0];
+                formData.append('file', file);
+                formData.append('startTime', this.startHandle.value);
+                formData.append('duration', this.endHandle.value - this.startHandle.value);
+                formData.append('compress', compress);
+
+                try {
+                    const response = await fetch('/trim-video', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (result.success) {
+                            this.videoPreview.src = result.path;
+                            
+                            this.videoPreview.addEventListener('loadedmetadata', () => {
+                                const duration = this.videoPreview.duration;
+                                this.startHandle.max = duration;
+                                this.endHandle.max = duration;
+                                this.startHandle.value = 0;
+                                this.endHandle.value = duration;
+                                this.updateSliderBackground();
+                            }, { once: true });
+                        }
+                    } else {
+                        alert('Error processing video');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Error processing video');
+                }
+            }
+
+            async saveVideo() {
+                const videoUrl = this.videoPreview.src;
+                const fileName = videoUrl.split('/').pop();
+                
+                const a = document.createElement('a');
+                a.href = videoUrl;
+                a.download = `edited_${fileName}`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
+        }
+
+        class AudioEditor {
+            constructor() {
+                this.audioPreview = document.getElementById('audioPreview');
+                this.startHandle = document.getElementById('audioStartHandle');
+                this.endHandle = document.getElementById('audioEndHandle');
+                this.previewButton = document.getElementById('audioPreviewButton');
+                this.trimButton = document.getElementById('audioTrimButton');
+                this.compressButton = document.getElementById('audioCompressButton');
+                this.saveButton = document.getElementById('audioSaveButton');
+
+                this.initializeSliders();
+                this.initializeButtons();
+            }
+
+            initializeSliders() {
+                this.audioPreview.addEventListener('loadedmetadata', () => {
+                    const duration = this.audioPreview.duration;
+                    this.startHandle.max = duration;
+                    this.endHandle.max = duration;
+                    this.endHandle.value = duration;
+                    this.updateSliderBackground();
+                });
+
+                this.startHandle.addEventListener('input', () => {
+                    if (parseFloat(this.startHandle.value) > parseFloat(this.endHandle.value)) {
+                        this.startHandle.value = this.endHandle.value;
+                    }
+                    this.updateSliderBackground();
+                });
+
+                this.endHandle.addEventListener('input', () => {
+                    if (parseFloat(this.endHandle.value) < parseFloat(this.startHandle.value)) {
+                        this.endHandle.value = this.startHandle.value;
+                    }
+                    this.updateSliderBackground();
+                });
+            }
+
+            updateSliderBackground() {
+                const start = (this.startHandle.value / this.startHandle.max) * 100;
+                const end = (this.endHandle.value / this.endHandle.max) * 100;
+                
+                this.startHandle.style.background = this.endHandle.style.background = 
+                    `linear-gradient(to right, 
+                        #ddd 0%, 
+                        #ddd ${start}%, 
+                        #2196F3 ${start}%, 
+                        #2196F3 ${end}%, 
+                        #ddd ${end}%, 
+                        #ddd 100%)`;
+            }
+
+            initializeButtons() {
+                this.previewButton.addEventListener('click', () => this.previewSelection());
+                this.trimButton.addEventListener('click', () => this.trimAudio(false));
+                this.compressButton.addEventListener('click', () => this.trimAudio(true));
+                this.saveButton.addEventListener('click', () => this.saveAudio());
+            }
+
+            previewSelection() {
+                this.audioPreview.currentTime = parseFloat(this.startHandle.value);
+                this.audioPreview.play();
+                
+                setTimeout(() => {
+                    this.audioPreview.pause();
+                }, (this.endHandle.value - this.startHandle.value) * 1000);
+            }
+
+            async trimAudio(compress = false) {
+                const formData = new FormData();
+                const file = document.getElementById('fileInput').files[0];
+                formData.append('file', file);
+                formData.append('startTime', this.startHandle.value);
+                formData.append('duration', this.endHandle.value - this.startHandle.value);
+                formData.append('compress', compress);
+
+                try {
+                    const response = await fetch('/trim-audio', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (result.success) {
+                            this.audioPreview.src = result.path;
+                            
+                            this.audioPreview.addEventListener('loadedmetadata', () => {
+                                const duration = this.audioPreview.duration;
+                                this.startHandle.max = duration;
+                                this.endHandle.max = duration;
+                                this.startHandle.value = 0;
+                                this.endHandle.value = duration;
+                                this.updateSliderBackground();
+                            }, { once: true });
+                        }
+                    } else {
+                        alert('Error processing audio');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Error processing audio');
+                }
+            }
+
+            async saveAudio() {
+                const audioUrl = this.audioPreview.src;
+                const fileName = audioUrl.split('/').pop();
+                
+                const a = document.createElement('a');
+                a.href = audioUrl;
+                a.download = `edited_${fileName}`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
+        }
+
+        class ImageEditor {
+            constructor() {
+                this.imagePreview = document.getElementById('imagePreview');
+                this.cropButton = document.getElementById('cropButton');
+                this.resetButton = document.getElementById('resetButton');
+                this.saveButton = document.getElementById('saveImageButton');
+                this.formatSelect = document.getElementById('imageFormat');
+                
+                this.initializeCropper();
+                this.initializeButtons();
+            }
+
+            initializeCropper() {
+                if (this.cropper) {
+                    this.cropper.destroy();
+                }
+                
+                this.cropper = new Cropper(this.imagePreview, {
+                    aspectRatio: NaN,
+                    viewMode: 2,
+                    guides: true,
+                    background: true,
+                    autoCropArea: 1,
+                    responsive: true,
+                    cropBoxResizable: true,
+                    cropBoxMovable: true,
+                    dragMode: 'move',
+                    restore: false,
+                    modal: true,
+                    highlight: false,
+                    center: true,
+                    zoomable: true,
+                    scalable: false
+                });
+            }
+
+            initializeButtons() {
+                this.cropButton.addEventListener('click', () => this.applyCrop());
+                this.resetButton.addEventListener('click', () => this.resetCrop());
+                this.saveButton.addEventListener('click', () => this.saveImage());
+            }
+
+            applyCrop() {
+                const canvas = this.cropper.getCroppedCanvas();
+                const format = this.formatSelect.value;
+                
+                canvas.toBlob((blob) => {
+                    const url = URL.createObjectURL(blob);
+                    this.imagePreview.src = url;
+                    this.initializeCropper();
+                }, `image/${format}`);
+            }
+
+            resetCrop() {
+                this.cropper.reset();
+            }
+
+            async saveImage() {
+                const cropData = this.cropper.getData();
+                const format = this.formatSelect.value;
+                
+                const formData = new FormData();
+                const file = document.getElementById('fileInput').files[0];
+                formData.append('file', file);
+                formData.append('cropData', JSON.stringify(cropData));
+                formData.append('format', format);
+
+                try {
+                    const response = await fetch('/process-image', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (result.success) {
+                            const a = document.createElement('a');
+                            a.href = `/${result.path}`;
+                            a.download = `edited_${file.name}`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                        }
+                    } else {
+                        alert('Error saving image');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Error saving image');
+                }
+            }
+        }
+
+        async function directCompress() {
+            const fileInput = document.getElementById('fileInput');
+            if (!fileInput.files.length) {
+                alert('Please select a file first');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    document.open();
+                    document.write(await response.text());
+                    document.close();
+                } else {
+                    alert('Error compressing file');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error compressing file');
+            }
+        }
+
+        function showEditor() {
+            const file = document.getElementById('fileInput').files[0];
+            if (file) {
+                if (file.type.startsWith('video/')) {
+                    const videoUrl = URL.createObjectURL(file);
+                    const videoPreview = document.getElementById('videoPreview');
+                    videoPreview.src = videoUrl;
+                    document.getElementById('videoEditor').style.display = 'block';
+                    document.getElementById('audioEditor').style.display = 'none';
+                    document.getElementById('imageEditor').style.display = 'none';
+                    new VideoEditor();
+                } else if (file.type.startsWith('audio/')) {
+                    const audioUrl = URL.createObjectURL(file);
+                    const audioPreview = document.getElementById('audioPreview');
+                    audioPreview.src = audioUrl;
+                    document.getElementById('audioEditor').style.display = 'block';
+                    document.getElementById('videoEditor').style.display = 'none';
+                    document.getElementById('imageEditor').style.display = 'none';
+                    new AudioEditor();
+                } else if (file.type.startsWith('image/')) {
+                    const imageUrl = URL.createObjectURL(file);
+                    const imagePreview = document.getElementById('imagePreview');
+                    imagePreview.src = imageUrl;
+                    document.getElementById('imageEditor').style.display = 'block';
+                    document.getElementById('videoEditor').style.display = 'none';
+                    document.getElementById('audioEditor').style.display = 'none';
+                    new ImageEditor();
+                }
+            }
+        }
+
+        // Initialize everything when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new NetworkDetector();
+            new LocationDetector();
+        });
+    </script>
+</body>
+</html>
